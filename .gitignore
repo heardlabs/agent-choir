@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.egg-info/
+takes/
+work.json
+song.json
+*.mp4
+*.mp3
+.env
