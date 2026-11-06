@@ -1,129 +1,202 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
 
-from choir import lyrics, providers, video, work
-from choir.cast import MAX_AGENTS, assign
-from choir.song import Section, Song
-
-EX = Path(__file__).parent.parent / "examples" / "work.json"
+from choir import agents, audio, cli, config, core, ledger, providers, reel, summarize
+from choir.agents import Turn
+from choir.cast import CAST, NAMES
 
 
-def agents():
-    return work.top_agents(work.from_json(EX))
+def tone(path: Path, secs=3.0, lead_silence=1.0):
+    subprocess.run([audio.ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                    f"anullsrc=r=44100:cl=mono:d={lead_silence}", "-f", "lavfi", "-i",
+                    f"sine=frequency=440:duration={secs}", "-filter_complex", "[0][1]concat=n=2:v=0:a=1",
+                    str(path)], check=True)
+    return path
 
 
-def test_top_agents_sorted_and_capped():
-    a = agents()
-    assert [x.project for x in a][0] == "heard-v3"
-    assert len(work.top_agents(a * 3)) == MAX_AGENTS
+# --- hooks ---------------------------------------------------------------
+
+def test_claude_hook_payload_uses_terminal_when_known():
+    p = {"session_id": "s1", "cwd": "/x/billing-api", "last_assistant_message": "Fixed it."}
+    t = agents.from_claude_hook(p, {"TMUX_PANE": "%3"})
+    assert (t.agent, t.project, t.message) == ("TMUX_PANE:%3", "billing-api", "Fixed it.")
+    assert agents.from_claude_hook(p, {}).agent == "claude:s1"
 
 
-def test_scrub_removes_secrets_emails_urls_home():
-    s = work.scrub("key sk-ant-abcdefghijklmnopqrstuv mail kelly@heard.dev at https://x.io/a in /home/kelly/p")
-    assert "sk-ant" not in s and "@" not in s and "https" not in s and "/home/kelly" not in s
+def test_codex_notify_payload():
+    p = {"type": "agent-turn-complete", "thread-id": "t9", "cwd": "/x/web", "last-assistant-message": "Done."}
+    t = agents.from_codex_notify(p, {})
+    assert (t.agent, t.project, t.message, t.source) == ("codex:t9", "web", "Done.", "codex")
+    assert agents.from_codex_notify({"type": "other"}, {}) is None
 
 
-def test_assign_skips_beatboxer_and_caps():
-    roles = assign(["a", "b"])
-    assert roles["a"].name == "Merge" and all(r.name != "Grep" for r in roles.values())
-    with pytest.raises(ValueError):
-        assign([str(i) for i in range(MAX_AGENTS + 1)])
+def test_hook_never_raises_on_garbage(monkeypatch, capsys):
+    monkeypatch.setattr("sys.stdin", __import__("io").StringIO("not json"))
+    cli.hook("claude", None)  # logs, does not raise
+    cli.hook("codex", "{bad")
 
 
-def test_template_song_is_valid():
-    song = lyrics.template(agents())
-    assert song.problems() == []
+def test_hook_skips_when_stop_hook_active(monkeypatch):
+    called = []
+    monkeypatch.setattr(cli, "_detach", lambda *a: called.append(a))
+    monkeypatch.setattr("sys.stdin", __import__("io").StringIO(json.dumps({"stop_hook_active": True})))
+    cli.hook("claude", None)
+    assert not called
 
 
-def test_banned_phrases_rejected():
-    song = lyrics.template(agents())
-    song.sections[0].lines.append("Heigh-ho we go")
-    assert any("banned" in p for p in song.problems())
+# --- seats ---------------------------------------------------------------
+
+def test_each_terminal_keeps_its_own_singer():
+    a, b = Turn("t:a", "api", "", "x"), Turn("t:b", "web", "", "x")
+    sa, sb = agents.singer_for(a), agents.singer_for(b)
+    assert sa.name != sb.name
+    assert agents.singer_for(a).name == sa.name
 
 
-def test_unknown_singer_rejected():
-    song = Song("t", [Section("chorus", ["Sneezy"], ["la"])])
-    assert any("unknown singer" in p for p in song.problems())
+def test_quiet_terminal_releases_its_singer():
+    agents.singer_for(Turn("t:a", "api", "", "x"), now=0)
+    s = agents.singer_for(Turn("t:b", "web", "", "x"), now=agents.RELEASE_S + 10)
+    assert s.name == NAMES[0]
 
 
-def test_song_roundtrip(tmp_path):
-    song = lyrics.template(agents())
-    song.save(tmp_path / "s.json")
-    assert Song.load(tmp_path / "s.json") == song
+def test_more_terminals_than_singers_reuses_quietest():
+    for i in range(len(CAST)):
+        agents.singer_for(Turn(f"t:{i}", "p", "", "x"), now=100 + i)
+    s = agents.singer_for(Turn("t:new", "p", "", "x"), now=200)
+    assert s.name == NAMES[0]
 
+
+def test_project_pin_wins():
+    assert agents.singer_for(Turn("t:a", "api", "", "x"), pins={"api": "Rebase"}).name == "Rebase"
+
+
+# --- summarizing ---------------------------------------------------------
+
+def test_plain_summary_is_short_and_singable():
+    msg = "## Done\nFixed the `limiter.ts` bug in https://x.io so **all 214 tests** pass. Next I will deploy."
+    line = summarize.summarize(msg, "plain")
+    assert "http" not in line and "`" not in line and "*" not in line and "#" not in line
+    assert "Next" not in line
+    assert len(line.split()) <= summarize.MAX_WORDS
+
+
+def test_banned_reference_phrases_are_removed():
+    assert "heigh" not in summarize.finish("Heigh-ho, tests are green").lower()
+
+
+def test_summarizer_falls_back_to_plain(monkeypatch):
+    monkeypatch.setattr(summarize, "_anthropic", lambda *a: (_ for _ in ()).throw(RuntimeError("down")))
+    assert summarize.summarize("Shipped the docs site today. More later.", "anthropic") == "Shipped the docs site today"
+
+
+def test_plain_cuts_long_sentence_at_a_clause_break():
+    msg = "I updated quota.ts so the daily quota resets on the user's local day instead of UTC midnight. All 214 tests pass."
+    assert summarize.plain(msg) == "All 214 tests pass"
+    msg = "I updated the quota code so the daily quota resets on the local day instead of UTC midnight for everyone."
+    assert summarize.plain(msg) == "I updated the quota code"
+
+
+# --- providers -----------------------------------------------------------
 
 @pytest.mark.parametrize("key", list(providers.PROVIDERS))
-def test_every_provider_builds_a_valid_payload(key):
-    song = lyrics.template(agents())
+def test_every_provider_builds_a_request(key):
     p = providers.PROVIDERS[key]
-    payload = p.build(song)
+    payload = p.request("I fixed the login test", CAST[1], "a cappella", 6.0)
     json.dumps(payload)
-    assert p.cost(song) >= 0
-    if key.startswith("minimax"):
-        assert "[Chorus]" in payload["lyrics"] and 10 <= len(payload["prompt"]) <= 2000
-    if key.startswith("lyria"):
-        assert "no instruments" in payload["prompt"] and len(payload["prompt"]) <= 5000
-    if key == "elevenlabs":
-        secs = payload["composition_plan"]["sections"]
-        assert len(secs) == len(song.sections)
-        assert all(3000 <= s["duration_ms"] <= 120000 for s in secs)
-        assert len(p.timings(song)) == len(song.sections) + 1
-    if key == "ace-step":
-        assert "[chorus]" in payload["lyrics"] and payload["tags"]
+    assert p.cost(6.0) >= 0
+    text = json.dumps(payload)
+    assert "I fixed the login test" in text
+    if "elevenlabs" in key:
+        assert payload["music_length_ms"] == 6000
+    if key == "fal:ace-step":
+        assert payload["seed"] == CAST[1].seed and payload["duration"] == 6
 
 
-def test_section_times_cover_track():
-    song = lyrics.template(agents())
-    spans = video.section_times(song, 60.0, None)
-    assert spans[0][0] == 0 and abs(spans[-1][1] - 60.0) < 1e-6
-    pinned = providers.PROVIDERS["elevenlabs"].timings(song)
-    spans = video.section_times(song, 50.0, pinned)
-    assert abs(spans[-1][1] - 50.0) < 1e-6
+def test_clip_seconds_bounds():
+    assert providers.clip_seconds("hi", 12) == 4.0
+    assert providers.clip_seconds("word " * 40, 12) == 12
 
 
-def test_claude_transcript_parsing(tmp_path):
-    proj = tmp_path / "proj"
-    proj.mkdir()
-    recs = [
-        {"type": "user", "cwd": "/home/x/repo-a", "origin": {"kind": "human"}, "message": {"content": "fix the flaky login test"}},
-        {"type": "assistant", "cwd": "/home/x/repo-a", "message": {"content": [
-            {"type": "tool_use", "name": "Edit", "input": {"file_path": "/home/x/repo-a/login.test.ts"}},
-            {"type": "tool_use", "name": "Bash", "input": {"command": "git commit -m 'wait for the cookie before asserting'"}},
-            {"type": "text", "text": "Fixed: the test now waits for the session cookie."}]}},
-    ]
-    (proj / "abc123456.jsonl").write_text("\n".join(json.dumps(r) for r in recs))
-    [a] = work.from_claude(tmp_path, since=0)
-    assert a.project == "repo-a"
-    joined = " ".join(a.facts)
-    assert "flaky login" in joined and "login.test.ts" in joined and "cookie" in joined
+# --- audio + full path ---------------------------------------------------
+
+def test_finish_trims_silence_caps_length_and_pans(tmp_path):
+    src = tone(tmp_path / "in.wav", secs=20, lead_silence=1.5)
+    out = audio.finish(src, tmp_path / "out.wav", pan=-1.0, max_s=6)
+    assert 5.5 < audio.seconds(out) <= 6.1
+    assert audio.pan_gains(0)[0] == pytest.approx(audio.pan_gains(0)[1])
 
 
-def test_video_renders(tmp_path):
-    import subprocess
-    wav = tmp_path / "a.wav"
-    subprocess.run([video.ffmpeg(), "-y", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=6", str(wav)], check=True)
-    song = lyrics.template(agents())
-    out = video.render(song, wav, tmp_path / "o.mp4")
-    assert out.exists() and out.stat().st_size > 10_000
-    assert 5.5 < video.audio_seconds(out) < 6.5
+class FakeProvider(providers.Provider):
+    def sing(self, line, singer, style, seconds, dest, log=None):
+        return tone(dest.with_suffix(".src.wav"), secs=seconds).rename(dest)
 
 
-def test_shell_noise_is_not_a_fact(tmp_path):
-    proj = tmp_path / "p"
-    proj.mkdir()
-    recs = [{"type": "assistant", "cwd": "/r/x", "message": {"content": [
-        {"type": "tool_use", "name": "Bash", "input": {"command": "git commit -m \"$msg\""}},
-        {"type": "tool_use", "name": "Bash", "input": {"command": "WT=~/a; until true; do :; done"}},
-        {"type": "tool_use", "name": "Edit", "input": {"file_path": "/r/x/a.py"}}]}}]
-    (proj / "s.jsonl").write_text("\n".join(json.dumps(r) for r in recs))
-    [a] = work.from_claude(tmp_path, since=0)
-    joined = " ".join(a.facts)
-    assert "$msg" not in joined and "WT=" not in joined and "until" not in joined
+@pytest.fixture
+def fake(monkeypatch):
+    p = FakeProvider("fake", "PATH", "test", lambda *a: {}, lambda s: 0.5)
+    monkeypatch.setitem(providers.PROVIDERS, "fake", p)
+    return config.Settings(provider="fake", summarizer="plain", daily_budget_usd=1.0)
 
 
-def test_long_verse_card_fits():
-    song = Song("t", [Section("verse", ["Merge"], ["a long singable line about fixing the flaky login test again"] * 8)],
-                credits={"Merge": "x" * 200})
-    video.card(song, song.sections[0])  # must not raise; visual check is manual
+def test_perform_records_and_caches(fake):
+    t = Turn("t:a", "api", "I fixed the flaky login test today.", "cli")
+    e1 = core.perform(t, fake, play=False, echo=lambda *_: None)
+    assert e1["singer"] == NAMES[0] and e1["cost"] == 0.5
+    assert (ledger.clips_dir() / e1["clip"]).exists()
+    e2 = core.perform(t, fake, play=False, echo=lambda *_: None)
+    assert e2["clip"] == e1["clip"] and e2["cost"] == 0.0  # cached, free
+
+
+def test_budget_stops_singing(fake):
+    lines = ["one two three four five", "six seven eight nine ten", "eleven twelve thirteen fourteen"]
+    got = [core.perform(Turn("t:a", "api", l, "cli"), fake, play=False, echo=lambda *_: None) for l in lines]
+    assert got[0] and got[1] and got[2] is None  # $0.50 each, $1.00 a day
+
+
+def test_short_messages_and_mute_skip(fake):
+    assert core.perform(Turn("t:a", "api", "Done.", "cli"), fake, play=False) is None
+    fake.muted = True
+    assert core.perform(Turn("t:a", "api", "I fixed the login test today", "cli"), fake, play=False) is None
+
+
+def test_missing_key_is_reported_not_raised(monkeypatch):
+    s = config.Settings(provider="fal:lyria3", summarizer="plain")
+    msgs = []
+    assert core.perform(Turn("t:a", "api", "I fixed the login test today", "cli"), s, play=False, echo=msgs.append) is None
+    assert "FAL_KEY" in msgs[0]
+
+
+def test_reel_renders_turns_and_round(fake, tmp_path):
+    fake.daily_budget_usd = 10
+    es = [core.perform(Turn(f"t:{i}", f"proj{i}", f"line number {i} is sung here", "cli"), fake, play=False,
+                       echo=lambda *_: None) for i in range(3)]
+    out = reel.render(es, tmp_path / "r.mp4")
+    assert out.stat().st_size > 10_000
+    out2 = reel.render(es, tmp_path / "r2.mp4", stagger=1.0)
+    assert audio.seconds(out2) < audio.seconds(out)
+
+
+# --- install -------------------------------------------------------------
+
+def test_install_claude_merges_and_is_idempotent(tmp_path):
+    p = tmp_path / "settings.json"
+    p.write_text(json.dumps({"model": "x", "hooks": {"Stop": [{"hooks": [{"type": "command", "command": "other"}]}]}}))
+    cli.install_claude(p)
+    data = json.loads(p.read_text())
+    assert data["model"] == "x" and len(data["hooks"]["Stop"]) == 2
+    assert data["hooks"]["Stop"][1]["hooks"][0]["async"] is True
+    assert cli.install_claude(p) == "already installed"
+
+
+def test_install_codex_puts_notify_at_top_level(tmp_path):
+    p = tmp_path / "config.toml"
+    p.write_text('model = "gpt"\n[profiles.x]\nmodel = "y"\n')
+    cli.install_codex(p)
+    import tomllib
+    data = tomllib.loads(p.read_text())
+    assert data["notify"][-2:] == ["hook", "codex"]
+    p.write_text('notify = ["mine"]\n')
+    assert "already has a notify" in cli.install_codex(p)

@@ -1,8 +1,10 @@
 [project]
 name = "agent-choir"
 version = "0.1.0"
-description = "Turn what your coding agents did into an a cappella song (and a tweetable video)."
+description = "Your coding agents sing what they just did: a drop-in, bring-your-own-key hook for Claude Code and Codex."
 requires-python = ">=3.11"
+license = { text = "MIT" }
+readme = "README.md"
 dependencies = [
     "anthropic>=2.0",
     "pillow>=10.0",
