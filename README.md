@@ -1,42 +1,81 @@
-# agent-choir
+<p align="center"><img src="docs/banner.png" alt="agent-choir: seven 16-bit dwarfs, Merge, Rebase, Deploy, Lint, Docs, Patch and Grep, each in a coloured card with their voice part"></p>
 
-**Your coding agents sing what they just did.**
+<h3 align="center">Your coding agents sing what they just did.</h3>
 
-<p align="center"><img src="docs/choir.gif" width="600" alt="Seven pixel-art dwarfs in terminal windows, each singing one line about what its agent just did"></p>
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-ffc450?style=flat-square" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/works%20with-Claude%20Code-d97757?style=flat-square" alt="Works with Claude Code">
+  <img src="https://img.shields.io/badge/works%20with-Codex-8a84a0?style=flat-square" alt="Works with Codex">
+  <img src="https://img.shields.io/badge/macOS%20%7C%20Linux-1c1a28?style=flat-square" alt="macOS and Linux">
+  <a href="https://github.com/heardlabs/agent-choir/stargazers"><img src="https://img.shields.io/github/stars/heardlabs/agent-choir?style=flat-square&color=ffc450" alt="GitHub stars"></a>
+</p>
 
-agent-choir is a sub-project of [Heard](https://heard.dev/?utm_source=github&utm_medium=organic&utm_campaign=agent-choir), the Mac app that lets you talk to your coding agents and hear them back: short spoken summaries of what Claude Code, Codex and other CLI agents just did, and a heads-up the moment one needs you. agent-choir is the musical version: your agents sing instead.
+When a Claude Code or Codex agent finishes a turn, agent-choir boils its reply down to one plain line and **sings it**, a cappella, through the music model you bring a key for. Every terminal gets its own 16-bit dwarf and its own spot in the stereo field. Run five agents and you get a choir.
 
-When a Claude Code or Codex agent finishes a turn, agent-choir boils its reply down to one plain line ("I fixed the login test, all two hundred pass") and *sings* it, a cappella, through the music model of your choice. Every terminal gets its own singer and its own place in the stereo field. Run five agents and you get a choir.
+A sub-project of [Heard](https://heard.dev/?utm_source=github&utm_medium=organic&utm_campaign=agent-choir), the Mac app that lets you talk to your coding agents and hear them back: short spoken summaries of what they just did, and a heads-up the moment one needs you.
 
-- **Drop-in.** One hook. The agent never waits: the hook hands off and returns in about 0.1 s.
-- **Bring your own key.** fal.ai (one key for Google Lyria, ElevenLabs Music, ACE-Step and MiniMax) or ElevenLabs direct. No account with us; nothing leaves your machine except the line being sung (and the reply, if you turn on the Claude summarizer).
-- **Seven singers, the 16-bit crew.** Merge (lead tenor), Rebase (bass), Deploy (soprano), Lint (baritone), Docs (alto), Patch (second tenor), Grep (falsetto). Each is an original pixel-art dwarf. A terminal keeps its singer until it has been quiet for 6 hours.
-- **A spending cap.** $3 a day by default. Repeat lines are cached and free.
-- **A reel.** `choir reel` turns the last hour of singing into a square (X) or 9:16 (TikTok, RedNote, Reels) video: a grid of terminals, each with a 16-bit dwarf whose mouth moves with its own voice. Ready to post, no extra API calls.
+<p align="center"><img src="docs/choir.gif" width="600" alt="A 1080x1080 reel: seven terminal windows in a grid. The dwarfs for website, docs and desktop-app light up in turn, mouths moving, each with its sung line underneath: 'The pricing page loads in one second now, down from three', 'I wrote the hotkey guide and fixed eleven broken links', 'I need your okay before I ship the release tonight'"></p>
 
-MIT licensed. macOS and Linux.
+<!-- VIDEO WITH SOUND goes here: edit this file on github.com, drag the 38 s round MP4 in, and GitHub inserts a playable video URL. -->
 
 ## Install
 
 ```bash
-pipx install git+https://github.com/heardlabs/agent-choir      # or: uv tool install git+...
-mkdir -p ~/.config/agent-choir
-echo 'FAL_KEY=your-fal-key' >> ~/.config/agent-choir/env       # https://fal.ai/dashboard/keys
-choir install claude      # adds an async Stop hook to ~/.claude/settings.json (backs it up first)
-choir install codex       # adds notify to ~/.codex/config.toml
-choir doctor
+pipx install git+https://github.com/heardlabs/agent-choir
+echo 'FAL_KEY=your-fal-key' >> ~/.config/agent-choir/env   # https://fal.ai/dashboard/keys
+choir install claude                                       # and/or: choir install codex
 ```
 
-Keys can also come from your shell environment. The `env` file exists because Codex and some terminals do not pass your environment to hook programs.
+That's it. The next time an agent finishes, it sings. `choir doctor` checks your key, player and ffmpeg.
 
-Try it without an agent:
+<details>
+<summary>More install notes</summary>
+
+- `uv tool install git+https://github.com/heardlabs/agent-choir` works too.
+- `choir install claude` adds an async Stop hook to `~/.claude/settings.json` (backing it up first). `choir install codex` adds `notify` to `~/.codex/config.toml`.
+- Keys can also come from your shell. The `env` file exists because Codex and some terminals don't pass your environment to hook programs.
+
+</details>
+
+No agents handy? `choir demo --singers 7` runs seven pretend terminals and writes a reel.
+
+## What you'll hear
+
+The agent's reply goes in; one first-person line comes out and gets sung. Real lines from the demo:
+
+| Terminal | Singer | Sings |
+|---|---|---|
+| billing-api | Merge, lead tenor | "Fixed the midnight rate limiter bug, all two hundred tests pass" |
+| website | Rebase, bass | "The pricing page loads in one second now, down from three" |
+| docs | Deploy, soprano | "I wrote the hotkey guide and fixed eleven broken links" |
+| desktop-app | Lint, baritone | "I need your okay before I ship the release tonight" |
+| handbook | Docs, alto | "Rewrote the setup guide, new folks are running in five minutes" |
+| mobile-app | Patch, second tenor | "Patched the crash on older phones, nobody gets kicked out now" |
+| search | Grep, falsetto | "Found the slow query hiding in the search page, it flies now" |
+
+A terminal keeps its singer until it has been quiet for 6 hours. Pin one with `[voices]` in the config.
+
+## Make a reel
 
 ```bash
-choir say "I merged the docs branch and every link is green" --raw
-choir demo        # four pretend terminals sing in turn (4 clips), then writes choir-demo.mp4
+choir reel --since 60 --stagger 4 -o round.mp4     # last hour of singing, entrances overlap like a round
+choir reel --since 60 --vertical -o tall.mp4       # 1080x1920 for TikTok, RedNote, Reels, Shorts
 ```
 
-## Pick a singer model
+<p align="center"><img src="docs/vertical.png" width="300" alt="The 9:16 reel: seven terminal panes stacked in two columns under the agent-choir title, Grep the falsetto singing in the last pane"></p>
+
+The reel uses the clips your agents already sang. Each dwarf has a closed, half-open and open mouth, picked frame by frame from the loudness of its own voice, so rendering is local and free. Square by default (X), 9:16 with `--vertical`; the tall cut keeps the bottom strip clear for the platform's captions.
+
+## Features
+
+- **Drop-in.** One hook. The agent never waits: the hook hands off and returns in about 0.1 s.
+- **Bring your own key.** One fal.ai key covers Google Lyria, ElevenLabs Music, ACE-Step and MiniMax; ElevenLabs direct works too. No account with us. Nothing leaves your machine except the line being sung (and the reply, if you turn on the Claude summarizer).
+- **Seven singers.** Original pixel-art dwarfs, each with a voice part and a stereo seat.
+- **A spending cap.** $3 a day by default. Repeat lines are cached and free.
+- **Reels.** Square or 9:16, rendered locally from what your agents sang.
+- **Quiet when you need it.** `choir mute`, or `CHOIR_MUTE=1`. Replies shorter than 4 words ("Done.") are skipped.
+
+## Pick a music model
 
 ```bash
 choir providers
@@ -78,17 +117,6 @@ billing-api = "Rebase"
 
 Replies shorter than 4 words ("Done.") are skipped. `choir mute` / `choir unmute` (or `CHOIR_MUTE=1`) silences everything.
 
-## The reel (for posting)
-
-```bash
-choir reel --since 60 -o reel.mp4                 # agents take turns
-choir reel --since 60 --stagger 2.5 -o round.mp4  # they come in one after another and overlap, like a round
-choir reel --since 60 --vertical -o tall.mp4      # 1080x1920 for TikTok, RedNote, Reels, Shorts
-choir demo --singers 7 --stagger 4 --vertical      # no agents yet? seven fake terminals, the whole crew
-```
-
-1080x1080 (or 1080x1920 with `--vertical`) H.264 + AAC at 15 fps. The vertical cut leaves the bottom strip clear for the platform's caption UI. The sprites have a closed, half-open and open mouth (`choir/assets/sprites/`), picked frame by frame from the loudness of each singer's clip, so rendering is local and free. Clips live in `~/.local/state/agent-choir/clips/`, and every sung line is logged with its cost in `ledger.jsonl` next to them.
-
 ## How it works
 
 ```
@@ -101,9 +129,12 @@ The terminal is identified from `TMUX_PANE`, `HERDR_PANE_ID`, `WEZTERM_PANE`, `K
 
 Adding a model means writing one `Provider` in `choir/providers/__init__.py`: a request builder and a cost function.
 
-## Not affiliated
+## Add a singer or a model
 
-The idea is a work crew singing on the job. The lines are original. The tool strips a short list of phrases from a certain 1937 film's song, so nobody's agents accidentally sing it.
+- **A model:** one `Provider` in `choir/providers/__init__.py`, a request builder and a cost function. Suno isn't here because it has no public API yet (an invite-only partner program opened in July 2026), and unofficial wrappers drive someone's account against its terms.
+- **A singer:** a `Singer` in `choir/cast.py` (voice description, stereo seat, colour) and a 288x96 sprite strip in `choir/assets/sprites/` with closed, half-open and open mouth frames. [`campaign/`](campaign/) shows how the crew was drawn.
+
+PRs with new singers are very welcome.
 
 ## Dev
 
@@ -112,3 +143,18 @@ uv venv && uv pip install -e '.[dev]' && pytest -q
 ```
 
 The tests use a fake singer and never call a paid API.
+
+## Not affiliated
+
+The idea is a work crew singing on the job. The lines and the dwarfs are original. The tool strips a short list of phrases from a certain 1937 film's song, so nobody's agents sing it by accident.
+
+## Credits
+
+Made by the team behind [Heard](https://heard.dev/?utm_source=github&utm_medium=organic&utm_campaign=agent-choir). MIT licensed.
+
+<a href="https://star-history.com/#heardlabs/agent-choir&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=heardlabs/agent-choir&type=Date&theme=dark">
+    <img alt="Star history" src="https://api.star-history.com/svg?repos=heardlabs/agent-choir&type=Date" width="600">
+  </picture>
+</a>
