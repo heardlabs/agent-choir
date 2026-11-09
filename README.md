@@ -55,17 +55,6 @@ The agent's reply goes in; one first-person line comes out and gets sung. Real l
 
 A terminal keeps its singer until it has been quiet for 6 hours. Pin one with `[voices]` in the config.
 
-## Make a reel
-
-```bash
-choir reel --since 60 --stagger 4 -o round.mp4     # last hour of singing, entrances overlap like a round
-choir reel --since 60 --vertical -o tall.mp4       # 1080x1920 for TikTok, RedNote, Reels, Shorts
-```
-
-<p align="center"><img src="docs/vertical.png" width="300" alt="The 9:16 reel: seven terminal panes stacked in two columns under the agent-choir title, Grep the falsetto singing in the last pane"></p>
-
-The reel uses the clips your agents already sang. Each dwarf has a closed, half-open and open mouth, picked frame by frame from the loudness of its own voice, so rendering is local and free. Square by default (X), 9:16 with `--vertical`; the tall cut keeps the bottom strip clear for the platform's captions.
-
 ## Features
 
 - **Drop-in.** One hook. The agent never waits: the hook hands off and returns in about 0.1 s.
