@@ -4,7 +4,7 @@
 
 <p align="center"><img src="docs/choir.gif" width="600" alt="Seven pixel-art dwarfs in terminal windows, each singing one line about what its agent just did"></p>
 
-agent-choir is a sub-project of [Heard](https://heard.dev/?utm_source=github&utm_medium=organic&utm_campaign=agent-choir), the Mac app that turns what Claude Code, Codex and other CLI agents are doing into short spoken updates, so you can hear your agents from across the room or on the go. Claude Code's voice mode lets you talk to it; Heard makes it talk to you. agent-choir is the musical version: your agents sing instead.
+agent-choir is a sub-project of [Heard](https://heard.dev/?utm_source=github&utm_medium=organic&utm_campaign=agent-choir), the Mac app that lets you talk to your coding agents and hear them back: short spoken summaries of what Claude Code, Codex and other CLI agents just did, and a heads-up the moment one needs you. agent-choir is the musical version: your agents sing instead.
 
 When a Claude Code or Codex agent finishes a turn, agent-choir boils its reply down to one plain line ("I fixed the login test, all two hundred pass") and *sings* it, a cappella, through the music model of your choice. Every terminal gets its own singer and its own place in the stereo field. Run five agents and you get a choir.
 
