@@ -223,3 +223,17 @@ def test_mouth_follows_loudness(tmp_path):
     assert set(lv) <= {0, 1, 2}
     assert all(m == 0 for m in lv[: reel.FPS - 1])
     assert any(m == 2 for m in lv[reel.FPS + 1:])
+
+
+def test_vertical_layout_fits_seven_panes_inside_9x16():
+    boxes = reel.layout(7, reel.TALL)
+    assert len(boxes) == 7
+    assert all(0 <= x0 < x1 <= reel.SIZE and 0 <= y0 < y1 <= reel.TALL for x0, y0, x1, y1 in boxes)
+    last = boxes[-1]  # the lone last pane is centred
+    assert abs((last[0] + last[2]) / 2 - reel.SIZE / 2) <= 2
+
+
+def test_vertical_frame_is_9x16():
+    panes = [{"project": "a-very-long-project-name", "singer": n} for n in ("Merge", "Docs", "Grep")]
+    im = reel.frame(panes, {}, {}, height=reel.TALL)
+    assert im.size == (reel.SIZE, reel.TALL)

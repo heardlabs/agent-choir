@@ -4,6 +4,7 @@
   choir install codex         add the notify hook to ~/.codex/config.toml
   choir say "text" [--agent X --project Y]   sing a line yourself
   choir demo                  four fake terminals sing (costs a few clips)
+  choir demo --singers 7 --vertical   the whole crew, 9:16
   choir reel -o reel.mp4      campaign video from what your agents sang
   choir providers | voices | doctor | mute | unmute | budget
 """
@@ -109,11 +110,15 @@ def install_codex(cfg_path: Path) -> str:
 
 # --- demo ----------------------------------------------------------------
 
+# (terminal, project, singer, line): the demo pins each fake terminal to its singer
 DEMO = [
-    ("demo:api", "billing-api", "Fixed the midnight rate limiter bug, all two hundred tests pass"),
-    ("demo:web", "website", "The pricing page loads in one second now, down from three"),
-    ("demo:docs", "docs", "I wrote the hotkey guide and fixed eleven broken links"),
-    ("demo:app", "desktop-app", "I need your okay before I ship the release tonight"),
+    ("demo:api", "billing-api", "Merge", "Fixed the midnight rate limiter bug, all two hundred tests pass"),
+    ("demo:web", "website", "Rebase", "The pricing page loads in one second now, down from three"),
+    ("demo:docs", "docs", "Deploy", "I wrote the hotkey guide and fixed eleven broken links"),
+    ("demo:app", "desktop-app", "Lint", "I need your okay before I ship the release tonight"),
+    ("demo:handbook", "handbook", "Docs", "Rewrote the setup guide, new folks are running in five minutes"),
+    ("demo:mobile", "mobile-app", "Patch", "Patched the crash on older phones, nobody gets kicked out now"),
+    ("demo:search", "search", "Grep", "Found the slow query hiding in the search page, it flies now"),
 ]
 
 
@@ -140,6 +145,10 @@ def main(argv: list[str] | None = None) -> None:
 
     p = sub.add_parser("demo", help="four fake terminals sing, then a reel")
     p.add_argument("--provider")
+    p.add_argument("--singers", type=int, default=4, choices=range(1, len(DEMO) + 1), metavar="1-7",
+                   help="how many fake terminals (default 4; 7 is the whole crew)")
+    p.add_argument("--stagger", type=float, default=None, help="seconds between entrances in the reel")
+    p.add_argument("--vertical", action="store_true", help="9:16 reel for TikTok / RedNote / Reels")
     p.add_argument("--no-play", action="store_true")
     p.add_argument("-o", "--out", default="choir-demo.mp4")
 
@@ -147,6 +156,7 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--since", type=float, default=60, help="minutes back (default 60)")
     p.add_argument("--last", type=int, default=8, help="at most this many clips")
     p.add_argument("--stagger", type=float, default=None, help="seconds between entrances; small = overlap like a round")
+    p.add_argument("--vertical", action="store_true", help="9:16 instead of square")
     p.add_argument("-o", "--out", default="choir-reel.mp4")
 
     sub.add_parser("providers", help="list singing back-ends")
@@ -190,19 +200,21 @@ def main(argv: list[str] | None = None) -> None:
     if args.cmd == "demo":
         s.min_words = 0
         done = []
-        for agent, project, line in DEMO:
+        crew = DEMO[: args.singers]
+        s.voices = {**s.voices, **{project: singer for _, project, singer, _ in crew}}
+        for agent, project, _, line in crew:
             e = core.perform(Turn(agent, project, line, "demo"), s, play=not args.no_play, line=line)
             if e:
                 done.append(e)
         if done:
-            out = reel.render(done, Path(args.out))
+            out = reel.render(done, Path(args.out), stagger=args.stagger, vertical=args.vertical)
             print(f"-> {out}")
         return
 
     if args.cmd == "reel":
         es = ledger.entries(time.time() - args.since * 60)[-args.last:]
         es = [e for e in es if (ledger.clips_dir() / e["clip"]).exists()]
-        print(f"-> {reel.render(es, Path(args.out), stagger=args.stagger)}")
+        print(f"-> {reel.render(es, Path(args.out), stagger=args.stagger, vertical=args.vertical)}")
         return
 
     if args.cmd == "providers":

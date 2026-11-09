@@ -8,7 +8,7 @@ When a Claude Code or Codex agent finishes a turn, agent-choir boils its reply d
 - **Bring your own key.** fal.ai (one key for Google Lyria, ElevenLabs Music, ACE-Step and MiniMax) or ElevenLabs direct. No account with us; nothing leaves your machine except the line being sung (and the reply, if you turn on the Claude summarizer).
 - **Seven singers, the 16-bit crew.** Merge (lead tenor), Rebase (bass), Deploy (soprano), Lint (baritone), Docs (alto), Patch (second tenor), Grep (falsetto). Each is an original pixel-art dwarf. A terminal keeps its singer until it has been quiet for 6 hours.
 - **A spending cap.** $3 a day by default. Repeat lines are cached and free.
-- **A reel.** `choir reel` turns the last hour of singing into a square video: a grid of terminals, each with a 16-bit dwarf whose mouth moves with its own voice. Ready to post, no extra API calls.
+- **A reel.** `choir reel` turns the last hour of singing into a square (X) or 9:16 (TikTok, RedNote, Reels) video: a grid of terminals, each with a 16-bit dwarf whose mouth moves with its own voice. Ready to post, no extra API calls.
 
 MIT licensed. macOS and Linux.
 
@@ -79,9 +79,11 @@ Replies shorter than 4 words ("Done.") are skipped. `choir mute` / `choir unmute
 ```bash
 choir reel --since 60 -o reel.mp4                 # agents take turns
 choir reel --since 60 --stagger 2.5 -o round.mp4  # they come in one after another and overlap, like a round
+choir reel --since 60 --vertical -o tall.mp4      # 1080x1920 for TikTok, RedNote, Reels, Shorts
+choir demo --singers 7 --stagger 4 --vertical      # no agents yet? seven fake terminals, the whole crew
 ```
 
-1080x1080 H.264 + AAC at 15 fps, fits X, TikTok and RedNote. The sprites have a closed, half-open and open mouth (`choir/assets/sprites/`), picked frame by frame from the loudness of each singer's clip, so rendering is local and free. Clips live in `~/.local/state/agent-choir/clips/`, and every sung line is logged with its cost in `ledger.jsonl` next to them.
+1080x1080 (or 1080x1920 with `--vertical`) H.264 + AAC at 15 fps. The vertical cut leaves the bottom strip clear for the platform's caption UI. The sprites have a closed, half-open and open mouth (`choir/assets/sprites/`), picked frame by frame from the loudness of each singer's clip, so rendering is local and free. Clips live in `~/.local/state/agent-choir/clips/`, and every sung line is logged with its cost in `ledger.jsonl` next to them.
 
 ## How it works
 

@@ -1,7 +1,8 @@
 """Campaign video: a grid of terminals, each with a 16-bit dwarf who sings.
 
 Takes clips from the ledger (what your agents actually sang) and renders a
-1080x1080 MP4 for X / TikTok / RedNote. Each singer is a pixel sprite with a
+1080x1080 MP4 for X, or 1080x1920 (``vertical=True``) for TikTok / RedNote /
+Reels / Shorts. Each singer is a pixel sprite with a
 closed, half-open and open mouth; the mouth follows the loudness of that
 singer's own clip, so it costs nothing beyond the clips themselves.
 ``stagger`` controls the choir:
@@ -24,7 +25,8 @@ from PIL import Image, ImageDraw, ImageFont
 from choir import audio, ledger
 from choir.cast import by_name
 
-SIZE = 1080
+SIZE = 1080  # width; square reels are SIZE x SIZE
+TALL = 1920  # height of a vertical (9:16) reel
 FPS = 15  # pixel art reads best at a low, steady frame rate
 BG = (14, 12, 22)
 PANE = (28, 26, 40)
@@ -72,16 +74,20 @@ def _wrap(d, text, font, width):
     return out
 
 
-def layout(n: int) -> list[tuple[int, int, int, int]]:
-    cols = 1 if n == 1 else 2 if n <= 4 else 3
+def layout(n: int, height: int = SIZE) -> list[tuple[int, int, int, int]]:
+    """Pane boxes. A short last row is centred."""
+    tall = height > SIZE
+    cols = 1 if n == 1 else 2 if (n <= 4 or tall) else 3 if n <= 6 else 4
     rows = -(-n // cols)
-    top, pad = 110, 24
+    # vertical: room above for the title, and a strip below the platform's caption UI tends to cover
+    top, bottom, pad = (210, 150, 24) if tall else (110, 0, 24)
     w = (SIZE - pad * (cols + 1)) // cols
-    h = (SIZE - top - pad * (rows + 1)) // rows
+    h = (height - top - bottom - pad * (rows + 1)) // rows
     boxes = []
     for i in range(n):
         r, c = divmod(i, cols)
-        x = pad + c * (w + pad)
+        in_row = min(cols, n - r * cols)
+        x = pad + c * (w + pad) + (cols - in_row) * (w + pad) // 2
         y = top + pad + r * (h + pad)
         boxes.append((x, y, x + w, y + h))
     return boxes
@@ -122,14 +128,20 @@ def mouth_levels(clip: Path, fps: int = FPS) -> list[int]:
     return out
 
 
-def frame(panes: list[dict], active: dict[int, tuple[dict, int]], last: dict[int, str], blink: bool = False) -> Image.Image:
+def frame(panes: list[dict], active: dict[int, tuple[dict, int]], last: dict[int, str], blink: bool = False,
+          height: int = SIZE) -> Image.Image:
     """``active`` maps pane -> (entry, mouth); ``last`` is the last line each pane sang."""
-    img = Image.new("RGB", (SIZE, SIZE), BG)
+    img = Image.new("RGB", (SIZE, height), BG)
     d = ImageDraw.Draw(img)
-    d.text((32, 34), "agent-choir", font=_font(40), fill=FG)
-    d.text((340, 46), "your agents, singing about their work", font=_font(22), fill=DIM)
-    boxes = layout(len(panes))
-    fsize = 30 if len(panes) <= 2 else 22 if len(panes) <= 4 else 17
+    if height > SIZE:
+        d.text((SIZE // 2, 70), "agent-choir", font=_font(64), fill=FG, anchor="ma")
+        d.text((SIZE // 2, 152), "your agents, singing about their work", font=_font(30), fill=DIM, anchor="ma")
+    else:
+        d.text((32, 34), "agent-choir", font=_font(40), fill=FG)
+        d.text((340, 46), "your agents, singing about their work", font=_font(22), fill=DIM)
+    boxes = layout(len(panes), height)
+    pw = boxes[0][2] - boxes[0][0]
+    fsize = 30 if pw >= 900 else 22 if pw >= 480 else 17
     f, fb = _font(fsize), _font(fsize - 2)
     for i, (pane, box) in enumerate(zip(panes, boxes)):
         singer = by_name(pane["singer"])
@@ -143,8 +155,16 @@ def frame(panes: list[dict], active: dict[int, tuple[dict, int]], last: dict[int
         d.rectangle([x0, y0 + 30, x1, y0 + 44], fill=BAR)
         for k, col in enumerate([(255, 95, 86), (255, 189, 46), (39, 201, 63)]):
             d.ellipse([x0 + 16 + k * 22, y0 + 15, x0 + 30 + k * 22, y0 + 29], fill=col)
-        d.text((x0 + 90, y0 + 11), pane["project"], font=fb, fill=FG if on else DIM)
-        d.text((x1 - 16, y0 + 11), f"{singer.name} · {singer.part}", font=fb, fill=singer.color, anchor="ra")
+        # title bar: project on the left, singer on the right; shorten whichever doesn't fit
+        label = f"{singer.name} · {singer.part}"
+        room = w - 90 - 16 - 12
+        if d.textlength(pane["project"] + label, font=fb) > room:
+            label = singer.name
+        proj = pane["project"]
+        while proj and d.textlength(proj + label, font=fb) > room:
+            proj = proj[:-2] + "…" if len(proj) > 2 else ""
+        d.text((x0 + 90, y0 + 11), proj, font=fb, fill=FG if on else DIM)
+        d.text((x1 - 16, y0 + 11), label, font=fb, fill=singer.color, anchor="ra")
 
         # sprite: as big as fits (whole-number scale keeps the pixels square)
         text_h = int(fsize * 1.3) * 2 + 18
@@ -159,7 +179,8 @@ def frame(panes: list[dict], active: dict[int, tuple[dict, int]], last: dict[int
         ty = y0 + 52 + sp.height + 10
         line = active[i][0]["line"] if on else last.get(i)
         if line:
-            for wl in _wrap(d, ("♪ " if on else "  ") + line, f, w - 36)[:2]:
+            fits = max(1, (y1 - ty - 8) // int(fsize * 1.3))
+            for wl in _wrap(d, ("♪ " if on else "  ") + line, f, w - 36)[:fits]:
                 d.text((x0 + 18, ty), wl, font=f, fill=FG if on else DIM)
                 ty += int(fsize * 1.3)
         else:
@@ -167,7 +188,9 @@ def frame(panes: list[dict], active: dict[int, tuple[dict, int]], last: dict[int
     return img
 
 
-def render(entries: list[dict], out: Path, stagger: float | None = None, gap: float = 0.3) -> Path:
+def render(entries: list[dict], out: Path, stagger: float | None = None, gap: float = 0.3,
+           vertical: bool = False) -> Path:
+    height = TALL if vertical else SIZE
     if not entries:
         raise RuntimeError("no clips to put in the reel; let your agents sing first (or `choir demo`)")
     panes: list[dict] = []
@@ -193,7 +216,7 @@ def render(entries: list[dict], out: Path, stagger: float | None = None, gap: fl
     filters.append(f"{mix}amix=inputs={len(cues)}:normalize=0:duration=longest,apad=whole_dur={total:.3f},atrim=0:{total:.3f}[aout]")
     # (a bare `apad` is endless; with a stdin video input ffmpeg could then spin forever)
     cmd = [audio.ffmpeg(), "-y", "-hide_banner", "-loglevel", "error",
-           "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{SIZE}x{SIZE}", "-r", str(FPS), "-i", "-", *inputs,
+           "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{SIZE}x{height}", "-r", str(FPS), "-i", "-", *inputs,
            "-filter_complex", ";".join(filters), "-map", "0:v", "-map", "[aout]",
            "-vf", "format=yuv420p", "-c:v", "libx264", "-crf", "20", "-preset", "medium", "-tune", "animation",
            "-c:a", "aac", "-b:a", "192k", "-t", f"{total:.3f}", "-movflags", "+faststart", str(out.resolve())]
@@ -212,7 +235,7 @@ def render(entries: list[dict], out: Path, stagger: float | None = None, gap: fl
             blink = int(now * 2) % 2 == 1
             key = (tuple(sorted((k, v[0]["clip"], v[1]) for k, v in active.items())), tuple(sorted(last.items())), blink)
             if key != prev_key:  # most frames repeat; only redraw on change
-                prev_bytes = frame(panes, active, last, blink).tobytes()
+                prev_bytes = frame(panes, active, last, blink, height).tobytes()
                 prev_key = key
             p.stdin.write(prev_bytes)
         p.stdin.close()
