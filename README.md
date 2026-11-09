@@ -7,7 +7,6 @@
   <img src="https://img.shields.io/badge/works%20with-Claude%20Code-d97757?style=flat-square" alt="Works with Claude Code">
   <img src="https://img.shields.io/badge/works%20with-Codex-8a84a0?style=flat-square" alt="Works with Codex">
   <img src="https://img.shields.io/badge/macOS%20%7C%20Linux-1c1a28?style=flat-square" alt="macOS and Linux">
-  <a href="https://github.com/heardlabs/agent-choir/stargazers"><img src="https://img.shields.io/github/stars/heardlabs/agent-choir?style=flat-square&color=ffc450" alt="GitHub stars"></a>
 </p>
 
 When a Claude Code or Codex agent finishes a turn, agent-choir boils its reply down to one plain line and **sings it**, a cappella, through the music model you bring a key for. Every terminal gets its own 16-bit dwarf and its own spot in the stereo field. Run five agents and you get a choir.
@@ -22,6 +21,7 @@ A sub-project of [Heard](https://heard.dev/?utm_source=github&utm_medium=organic
 
 ```bash
 pipx install git+https://github.com/heardlabs/agent-choir
+mkdir -p ~/.config/agent-choir
 echo 'FAL_KEY=your-fal-key' >> ~/.config/agent-choir/env   # https://fal.ai/dashboard/keys
 choir install claude                                       # and/or: choir install codex
 ```
