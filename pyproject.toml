@@ -23,3 +23,6 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["choir", "choir.providers"]
+
+[tool.setuptools.package-data]
+choir = ["assets/sprites/*.png"]

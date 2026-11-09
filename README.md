@@ -6,9 +6,9 @@ When a Claude Code or Codex agent finishes a turn, agent-choir boils its reply d
 
 - **Drop-in.** One hook. The agent never waits: the hook hands off and returns in about 0.1 s.
 - **Bring your own key.** fal.ai (one key for Google Lyria, ElevenLabs Music, ACE-Step and MiniMax) or ElevenLabs direct. No account with us; nothing leaves your machine except the line being sung (and the reply, if you turn on the Claude summarizer).
-- **Seven singers.** Merge (lead tenor), Rebase (bass), Deploy (soprano), Lint (baritone), Docs (alto), Patch (second tenor), Grep (falsetto). A terminal keeps its singer until it has been quiet for 6 hours.
+- **Seven singers, the 16-bit crew.** Merge (lead tenor), Rebase (bass), Deploy (soprano), Lint (baritone), Docs (alto), Patch (second tenor), Grep (falsetto). Each is an original pixel-art dwarf. A terminal keeps its singer until it has been quiet for 6 hours.
 - **A spending cap.** $3 a day by default. Repeat lines are cached and free.
-- **A reel.** `choir reel` turns the last hour of singing into a square video of terminals lighting up as they sing, ready to post.
+- **A reel.** `choir reel` turns the last hour of singing into a square video: a grid of terminals, each with a 16-bit dwarf whose mouth moves with its own voice. Ready to post, no extra API calls.
 
 MIT licensed. macOS and Linux.
 
@@ -48,6 +48,8 @@ choir providers
 | `fal:minimax-2.6` | `FAL_KEY` | 2.5 min to render, long "oh-oh" intros | $0.15 |
 | `fal:minimax-2.0` | `FAL_KEY` | 4.5 min to render | $0.03 |
 
+Suno is not listed: it has no public API yet (an invite-only partner program opened in July 2026), and the unofficial wrappers drive someone's Suno account against its terms. It will be added when real keys exist.
+
 Measured 2026-11-06 on fal; "words clear" means Whisper transcribed the line back. MiniMax writes full songs, so the line is buried and it is too slow to follow an agent turn by turn. It is listed for completeness. Music models re-imagine the voice every time, so a singer sounds *similar* clip to clip, not identical.
 
 Set it in `~/.config/agent-choir/config.toml` (`choir init` writes an example):
@@ -79,7 +81,7 @@ choir reel --since 60 -o reel.mp4                 # agents take turns
 choir reel --since 60 --stagger 2.5 -o round.mp4  # they come in one after another and overlap, like a round
 ```
 
-1080x1080 H.264 + AAC, fits X, TikTok and RedNote. Clips live in `~/.local/state/agent-choir/clips/`, and every sung line is logged with its cost in `ledger.jsonl` next to them.
+1080x1080 H.264 + AAC at 15 fps, fits X, TikTok and RedNote. The sprites have a closed, half-open and open mouth (`choir/assets/sprites/`), picked frame by frame from the loudness of each singer's clip, so rendering is local and free. Clips live in `~/.local/state/agent-choir/clips/`, and every sung line is logged with its cost in `ledger.jsonl` next to them.
 
 ## How it works
 

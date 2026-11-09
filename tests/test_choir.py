@@ -200,3 +200,26 @@ def test_install_codex_puts_notify_at_top_level(tmp_path):
     assert data["notify"][-2:] == ["hook", "codex"]
     p.write_text('notify = ["mine"]\n')
     assert "already has a notify" in cli.install_codex(p)
+
+
+def test_every_singer_has_a_three_frame_sprite():
+    from PIL import Image
+    from choir.cast import CAST
+    for c in CAST:
+        im = Image.open(reel.SPRITES / f"{c.name}.png")
+        assert im.size == (reel.SPRITE_PX * 3, reel.SPRITE_PX)
+
+
+def test_mouth_follows_loudness(tmp_path):
+    import math, struct, wave
+    p = tmp_path / "tone.wav"
+    rate = 8000
+    with wave.open(str(p), "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate)
+        # 1 s silence, then 1 s of tone
+        frames = [0] * rate + [int(12000 * math.sin(2 * math.pi * 220 * i / rate)) for i in range(rate)]
+        w.writeframes(struct.pack(f"<{len(frames)}h", *frames))
+    lv = reel.mouth_levels(p)
+    assert set(lv) <= {0, 1, 2}
+    assert all(m == 0 for m in lv[: reel.FPS - 1])
+    assert any(m == 2 for m in lv[reel.FPS + 1:])
