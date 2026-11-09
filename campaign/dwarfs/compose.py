@@ -3,7 +3,7 @@ import subprocess, sys
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-sys.path.insert(0, "/home/kelly/projects/agent-choir")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from choir import audio
 from gen import CLIP
 

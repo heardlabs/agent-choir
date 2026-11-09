@@ -2,7 +2,7 @@
 import base64, json, subprocess, sys, time
 from pathlib import Path
 
-sys.path.insert(0, "/home/kelly/projects/agent-choir")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root
 from choir.providers import fal
 from choir import audio
 

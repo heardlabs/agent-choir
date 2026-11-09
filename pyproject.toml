@@ -5,11 +5,18 @@ description = "Your coding agents sing what they just did: a drop-in, bring-your
 requires-python = ">=3.11"
 license = { text = "MIT" }
 readme = "README.md"
+authors = [{ name = "Heard" }]
+keywords = ["claude-code", "codex", "coding-agents", "hooks", "music", "a-cappella", "pixel-art", "lyria"]
+classifiers = ["License :: OSI Approved :: MIT License", "Operating System :: MacOS", "Operating System :: POSIX :: Linux", "Programming Language :: Python :: 3"]
 dependencies = [
     "anthropic>=2.0",
     "pillow>=10.0",
     "imageio-ffmpeg>=0.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/heardlabs/agent-choir"
+Heard = "https://heard.dev/?utm_source=pypi&utm_medium=organic&utm_campaign=agent-choir"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
